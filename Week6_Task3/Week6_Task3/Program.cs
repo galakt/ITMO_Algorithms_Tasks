@@ -81,5 +81,126 @@ namespace Week6_Task3
                 }
             }
         }
+		
+		        public class Node<T>
+        {
+            public Node<T> Left { get; set; }
+            public Node<T> Right { get; set; }
+
+            public T Data { get; set; }
+
+            public Node()
+            {
+                Left = null;
+                Right = null;
+            }
+
+            public Node(T data) : this()
+            {
+                this.Data = data;
+            }
+
+            public int GetSize()
+            {
+                //return 1 + (Left?.GetSize() ?? 0) + (Right?.GetSize() ?? 0);
+
+                var s = 1;
+                if (Left != null)
+                {
+                    s += Left.GetSize();
+                }
+                if (Right != null)
+                {
+                    s += Right.GetSize();
+                }
+                return s;
+            }
+
+            public int GetHeightReq()
+            {
+                //return 1 + Math.Max(Left?.GetHeightReq() ?? 0, Right?.GetHeightReq() ?? 0);
+
+                var l = 0;
+                var r = 0;
+                if (Left != null)
+                {
+                    l = Left.GetHeightReq();
+                }
+                if (Right != null)
+                {
+                    r = Right.GetHeightReq();
+                }
+                
+                return 1 + Math.Max(l, r);
+            }
+        }
+
+        public class BinaryTree<T>
+        {
+            public Node<T> Root { get; set; }
+
+            public BinaryTree()
+            {
+                Root = null;
+            }
+
+            public int GetSize()
+            {
+                if (Root == null)
+                {
+                    return 0;
+                }
+
+                return Root.GetSize();
+            }
+
+            public int GetHeightReq()
+            {
+                if (Root == null)
+                {
+                    return 0;
+                }
+
+                return Root.GetHeightReq();
+            }
+
+            public int GetHeightIter()
+            {
+                if (Root == null)
+                {
+                    return 0;
+                }
+
+                var q = new Queue<Node<T>>();
+                
+                q.Enqueue(Root);
+                var h = 0;
+
+                while (true)
+                {
+                    var levelNodeCount = q.Count;
+                    if (levelNodeCount == 0)
+                    {
+                        return h;
+                    }
+                    h++;
+
+                    while (levelNodeCount > 0)
+                    {
+                        var currentNode = q.Dequeue();
+                        if (currentNode.Left != null)
+                        {
+                            q.Enqueue(currentNode.Left);
+                        }
+                        if (currentNode.Right != null)
+                        {
+                            q.Enqueue(currentNode.Right);
+                        }
+
+                        levelNodeCount--;
+                    }
+                }
+            }
+        }
     }
 }
