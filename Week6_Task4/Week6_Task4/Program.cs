@@ -11,6 +11,7 @@ namespace Week6_Task4
     {
         private const string InFileName = "input.txt";
         private const string OutFileName = "output.txt";
+        private static readonly StringBuilder _sb = new StringBuilder();
 
         static void Main(string[] args)
         {
@@ -21,20 +22,19 @@ namespace Week6_Task4
 
             var N = int.Parse(lines[0]);
 
-            var binTree = GenerateTest42();//ParseLinesToTree(lines, 1, N);
+            var binTree = ParseLinesToTree(lines, 1, N);
 
-            var r = binTree.GetHeightIter().ToString();
-            System.IO.File.WriteAllText(path: outFilePath, contents: r);
+            var M = int.Parse(lines[N + 1]);
+            var tasks = Array.ConvertAll(lines[N + 2].Split(new[] { " " }, StringSplitOptions.RemoveEmptyEntries), int.Parse);
 
-            //if (N == 0)
-            //{
-            //    System.IO.File.WriteAllText(path: outFilePath, contents: "0");
-            //}
-            //else
-            //{
-            //    var r = GetMaxDepthIter(lines, 1);
-            //    System.IO.File.WriteAllText(path: outFilePath, contents: r.ToString());
-            //}
+            foreach (var task in tasks)
+            {
+                binTree.DeleteSubtreeByKey(task);
+                _sb.Append(binTree.GetSize());
+                _sb.AppendLine();
+            }
+
+            System.IO.File.WriteAllText(path: outFilePath, contents: _sb.ToString());
         }
 
         private static BinaryTree<int> GenerateTest42()
@@ -42,7 +42,7 @@ namespace Week6_Task4
             var bt = new BinaryTree<int> {Root = new Node<int>()};
 
             var last = bt.Root;
-            for (int i = 0; i < 120000; i++)
+            for (int i = 0; i < 1200000; i++)
             {
                 last.Left = new Node<int>();
                 last = last.Left;
@@ -60,7 +60,7 @@ namespace Week6_Task4
 
             return new BinaryTree<int>
             {
-                Root = ParseLineIntoNode(lines, startIndex)
+                Root = ParseLineIntoNode(lines, startIndex, null)
             };
         }
 
@@ -100,7 +100,7 @@ namespace Week6_Task4
             }
         }
 
-        private static Node<int> ParseLineIntoNode(string[] lines, int nodeIndex)
+        private static Node<int> ParseLineIntoNode(string[] lines, int nodeIndex, Node<int> parent)
         {
             if (nodeIndex == 0)
             {
@@ -109,21 +109,27 @@ namespace Week6_Task4
 
             var rootNodeParams = Array.ConvertAll(lines[nodeIndex].Split(new[] { " " }, StringSplitOptions.RemoveEmptyEntries), int.Parse);
 
-            return new Node<int>
+            var node = new Node<int>
             {
                 Data = rootNodeParams[0],
-                Left = ParseLineIntoNode(lines, rootNodeParams[1]),
-                Right = ParseLineIntoNode(lines, rootNodeParams[2])
+                Parent = parent
             };
+            node.Left = ParseLineIntoNode(lines, rootNodeParams[1], node);
+            node.Right = ParseLineIntoNode(lines, rootNodeParams[2], node);
+
+            return node;
         }
 
 #if DEBUG
         [DebuggerDisplay("Data = {" + nameof(Data) + "}")]
 #endif
-        public class Node<T>
+        public class Node<T> where T : IComparable<T>
         {
             public Node<T> Left { get; set; }
             public Node<T> Right { get; set; }
+            public Node<T> Parent { get; set; }
+
+            private int? LastCalculatedSize { get; set; }
 
             public T Data { get; set; }
 
@@ -140,6 +146,10 @@ namespace Week6_Task4
 
             public int GetSize()
             {
+                if (LastCalculatedSize != null)
+                {
+                    return LastCalculatedSize.Value;
+                }
                 //return 1 + (Left?.GetSize() ?? 0) + (Right?.GetSize() ?? 0);
 
                 var s = 1;
@@ -151,7 +161,28 @@ namespace Week6_Task4
                 {
                     s += Right.GetSize();
                 }
-                return s;
+                LastCalculatedSize = s;
+
+                return LastCalculatedSize.Value;
+            }
+
+            public void RebuildSize()
+            {
+                var s = 1;
+                if (Left != null)
+                {
+                    s += Left.GetSize();
+                }
+                if (Right != null)
+                {
+                    s += Right.GetSize();
+                }
+                LastCalculatedSize = s;
+
+                if (Parent != null)
+                {
+                    Parent.RebuildSize();
+                }
             }
 
             public int GetHeightReq()
@@ -171,12 +202,56 @@ namespace Week6_Task4
                 
                 return 1 + Math.Max(l, r);
             }
+
+            public Node<T> DeleteSubtreeByKey(T key) 
+            {
+                if (key.CompareTo(Data) > 0) // Key > root.Data
+                {
+                    if (Right == null)
+                    {
+                        return null;
+                    }
+
+                    if (Right.Data.CompareTo(key) == 0)
+                    {
+                        var removingItem = Right;
+                        Right = null;
+                        RebuildSize();
+                        
+                        return removingItem;
+                    }
+
+                    return Right.DeleteSubtreeByKey(key);
+                }
+                else if (key.CompareTo(Data) < 0) // Key < root.Data
+                {
+                    if (Left == null)
+                    {
+                        return null;
+                    }
+
+                    if (Left.Data.CompareTo(key) == 0)
+                    {
+                        var removingItem = Left;
+                        Left = null;
+                        RebuildSize();
+
+                        return removingItem;
+                    }
+
+                    return Left.DeleteSubtreeByKey(key);
+                }
+                else
+                {
+                    return null;
+                }
+            }
         }
 
-        public class BinaryTree<T>
+        public class BinaryTree<T> where T : IComparable<T>
         {
             public Node<T> Root { get; set; }
-
+            
             public BinaryTree()
             {
                 Root = null;
@@ -202,15 +277,23 @@ namespace Week6_Task4
                 return Root.GetHeightReq();
             }
 
-            public int GetHeightIter()
+            public int GetHeightIter(int? estimatedSize)
             {
                 if (Root == null)
                 {
                     return 0;
                 }
 
-                var q = new Queue<Node<T>>();
-                
+                Queue<Node<T>> q;
+                if (estimatedSize != null)
+                {
+                    q = new Queue<Node<T>>(estimatedSize.Value);
+                }
+                else
+                {
+                    q = new Queue<Node<T>>();
+                }
+
                 q.Enqueue(Root);
                 var h = 0;
 
@@ -238,6 +321,11 @@ namespace Week6_Task4
                         levelNodeCount--;
                     }
                 }
+            }
+
+            public Node<T> DeleteSubtreeByKey(T key)
+            {
+                return Root.DeleteSubtreeByKey(key);
             }
         }
     }
